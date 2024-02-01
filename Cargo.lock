@@ -243,6 +243,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "clokwerk",
+ "cron 0.12.0",
  "cronjob",
  "csv",
  "hyper 1.1.0",
@@ -372,13 +373,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "cron"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ff76b51e4c068c52bfd2866e1567bee7c567ae8f24ada09fd4307019e25eab7"
+dependencies = [
+ "chrono",
+ "nom",
+ "once_cell",
+]
+
+[[package]]
 name = "cronjob"
 version = "0.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e596f513d5b176f3cb139af86439c9f97c1ba61ff15eb266059afc8fab27f6dc"
 dependencies = [
  "chrono",
- "cron",
+ "cron 0.11.0",
 ]
 
 [[package]]

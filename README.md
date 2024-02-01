@@ -1,16 +1,25 @@
-# Poise Hello World Bot with Shuttle
+# Chowkidar2.0
 
-In this example we will deploy a Poise/Serenity bot with Shuttle that responds to the `/hello` command with `world!`. To run this bot we need a valid Discord Token. To get started log in to the [Discord developer portal](https://discord.com/developers/applications).
+Ch0wkidar2.0 is an improved discord bot built for kicking club memebers who haven't send status updates in three consecutive days. The new version has a feature that displays the top 5 streaks. 
 
-1. Click the New Application button, name your application and click Create.
-2. Navigate to the Bot tab in the lefthand menu, and add a new bot.
-3. On the bot page click the Reset Token button to reveal your token. Put this token in your `Secrets.toml`. It's very important that you don't reveal your token to anyone, as it can be abused. Create a `.gitignore` file to omit your `Secrets.toml` from version control.
-4. For the sake of this example, you also need to scroll down on the bot page to the Message Content Intent section and enable that option.
+# Prerequisities
 
-To add the bot to a server we need to create an invite link.
+Before running the bot, ensure you have the following set up:
 
-1. On your bot's application page, open the OAuth2 page via the lefthand panel.
-2. Go to the URL Generator via the lefthand panel, and select the `bot` scope as well as the `Send Messages` permission in the Bot Permissions section.
-3. Copy the URL, open it in your browser and select a Discord server you wish to invite the bot to.
+- Rust: Make sure you have Rust installed on your system. You can install Rust by following the instructions on rustup.rs.
+    - For deployment and local runs, you will also require an account on [shuttle.rs](https://www.shuttle.rs/).
 
-For more information please refer to the [Discord docs](https://discord.com/developers/docs/getting-started) as well as the [Poise docs](https://docs.rs/poise) for more examples.
+- Discord Bot Token: Create a Discord bot on the Discord Developer Portal, and add the token to your Secrets.toml as "DISCORD_TOKEN".
+
+The final Secrets.toml file should resemble:
+```
+DISCORD_TOKEN=""
+```
+
+# Usage
+
+``` /send_report ```
+
+# License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
