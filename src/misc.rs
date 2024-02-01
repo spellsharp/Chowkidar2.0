@@ -1,9 +1,10 @@
 use chrono::{Datelike, NaiveDate};
 use serde_json::Value;
-use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::marker::{Send, Sync};
+
+pub type Error = Box<dyn std::error::Error + Send + Sync>;
 
 fn get_date() -> NaiveDate {
     let date = format!(
@@ -35,18 +36,36 @@ fn days_to_years(days: i64) -> String {
 
 pub fn process_json(
     data_path: &str,
-) -> Result<(Vec<Value>, Vec<Value>), Box<dyn Error + Send + Sync>> {
+) -> Result<(Vec<Value>, Vec<Value>), Error> {
     let mut file = File::open(data_path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
-    let json_data: Value = serde_json::from_str(&contents)?;
-    let did_not_send = json_data["memberDidNotSend"].as_array().unwrap().to_vec();
-    let did_send = json_data["memberDidSend"].as_array().unwrap().to_vec();
+
+    let json_data: Value = match serde_json::from_str(&contents) {
+        Ok(data) => data,
+        Err(err) => return Err(Box::new(err)),
+    };
+
+    let did_not_send = match json_data["memberDidNotSend"].as_array() {
+        Some(array) => array.to_vec(),
+        None => return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Invalid JSON format: memberDidNotSend is missing or not an array",
+        ))),
+    };
+
+    let did_send = match json_data["memberDidSend"].as_array() {
+        Some(array) => array.to_vec(),
+        None => return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Invalid JSON format: memberDidSend is missing or not an array",
+        ))),
+    };
 
     Ok((did_not_send, did_send))
 }
 
-pub fn compile_report(mock_data_path: &str) -> Result<(String, Vec<u64>), Box<dyn Error + Send + Sync>> {
+pub fn compile_report(mock_data_path: &str) -> Result<(String, Vec<u64>), Error> {
     // TODO: Use to secret store to get the path to the json file.
     
     // let (did_not_send, did_send) = process_json("secrets/mock_data.json")?;
@@ -132,28 +151,28 @@ pub fn compile_report(mock_data_path: &str) -> Result<(String, Vec<u64>), Box<dy
         }
     }
     if !first_years.is_empty() {
-        report += &format!("**First Years**\n");
+        report += &format!("First Years\n");
         for (index, member) in first_years.iter().enumerate() {
             report += &format!("{}. {}\n", index + 1, member);
         }
     }
 
     if !second_years.is_empty() {
-        report += &format!("**Second Years**\n");
+        report += &format!("Second Years\n");
         for (index, member) in second_years.iter().enumerate() {
             report += &format!("{}. {}\n", index + 1, member);
         }
     }
 
     if !third_years.is_empty() {
-        report += &format!("**Third Years**\n");
+        report += &format!("Third Years\n");
         for (index, member) in third_years.iter().enumerate() {
             report += &format!("{}. {}\n", index + 1, member);
         }
     }
 
     if !fourth_years.is_empty() {
-        report += &format!("**Fourth Years**\n");
+        report += &format!("Fourth Years\n");
         for (index, member) in fourth_years.iter().enumerate() {
             report += &format!("{}. {}\n", index + 1, member);
         }
