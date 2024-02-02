@@ -29,4 +29,6 @@ chrono-tz = "0.8.4"
 clokwerk = "0.3"
 cronjob = "0.4.17"
 cron = "0.12.0"
+actix-rt = "2.9.0"
+job_scheduler = "1.2.1"
 

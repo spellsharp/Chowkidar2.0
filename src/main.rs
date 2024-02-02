@@ -1,9 +1,11 @@
 mod misc;
 
-use cron::Schedule;
+use job_scheduler::{Job, JobScheduler};
 use poise::serenity_prelude as serenity;
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
+use std::thread;
+use std::time::Duration;
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
 
@@ -13,13 +15,16 @@ struct Data {
 
 type Context<'a> = poise::Context<'a, Data, Error>;
 
-// TODO: Call this function in a cron job.
-#[poise::command(slash_command)]
-async fn send_report(ctx: Context<'_>) -> Result<(), Error> {
+
+async fn send_report<'a>(ctx: &'a Context<'a>) -> Result<(), Error> {
     ctx.defer().await?;
 
-    let mock_data_path = ctx.data().secret_store.get("MOCK_DATA_PATH").ok_or("Failed to get mock data path")?;
-    
+    let mock_data_path = ctx
+        .data()
+        .secret_store
+        .get("MOCK_DATA_PATH")
+        .ok_or("Failed to get mock data path")?;
+
     let (report, kicked_ids) = misc::compile_report(&mock_data_path)?;
 
     // TODO: Uncomment this when need to actually kick.
@@ -39,7 +44,7 @@ async fn send_report(ctx: Context<'_>) -> Result<(), Error> {
 #[shuttle_runtime::main]
 async fn main(#[shuttle_secrets::Secrets] secret_store: SecretStore) -> ShuttlePoise<Data, Error> {
     let framework_options = poise::FrameworkOptions {
-        commands: vec![send_report()],
+        commands: vec![],
         ..Default::default()
     };
 
@@ -60,6 +65,22 @@ async fn main(#[shuttle_secrets::Secrets] secret_store: SecretStore) -> ShuttleP
         .build()
         .await
         .map_err(shuttle_runtime::CustomError::new)?;
+
+    thread::spawn(move || {
+        let mut sched = JobScheduler::new();
+
+        // TODO: Change this to 5 am everyday instead of every 10 seconds.
+        sched.add(Job::new("1/10 * * * * *".parse().unwrap(), move || {
+            // TODO: Fix this.
+            // send_report(); 
+            println!("Sending report!");
+        }));
+
+        loop {
+            sched.tick();
+            std::thread::sleep(Duration::from_millis(500));
+        }
+    });
 
     Ok(framework.into())
 }
