@@ -66,9 +66,6 @@ pub fn process_json(
 }
 
 pub fn compile_report(mock_data_path: &str) -> Result<(String, Vec<u64>), Error> {
-    // TODO: Use to secret store to get the path to the json file.
-    
-    // let (did_not_send, did_send) = process_json("secrets/mock_data.json")?;
     
     let (did_not_send, did_send) = process_json(mock_data_path)?;
 
@@ -178,7 +175,6 @@ pub fn compile_report(mock_data_path: &str) -> Result<(String, Vec<u64>), Error>
         }
     }
 
-    // Add list of people who did not send to the report.
     report += &format!("**Streaks! :fire:**\n");
 
     // Get members with top 5 streak values

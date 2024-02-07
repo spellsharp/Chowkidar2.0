@@ -1,11 +1,15 @@
 mod misc;
 
 use job_scheduler::{Job, JobScheduler};
-use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::{self as serenity, ChannelId};
+use serenity::{
+    http::Http,
+    model::id::{GuildId, UserId},
+};
 use shuttle_poise::ShuttlePoise;
 use shuttle_secrets::SecretStore;
-use std::thread;
-use std::time::Duration;
+use std::{sync::Arc, thread, time::Duration};
+use tokio::runtime::Runtime;
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
 
@@ -13,31 +17,37 @@ struct Data {
     secret_store: SecretStore,
 }
 
-type Context<'a> = poise::Context<'a, Data, Error>;
+pub async fn kick_member(http: &Http, guild_id: GuildId, user_id: UserId) -> serenity::Result<()> {
+    guild_id.kick(&http, user_id).await
+}
 
-
-async fn send_report<'a>(ctx: &'a Context<'a>) -> Result<(), Error> {
-    ctx.defer().await?;
-
-    let mock_data_path = ctx
-        .data()
-        .secret_store
+// TODO: Modify the function so that it can be called from the scheduler.
+async fn send_report(
+    secret_store: SecretStore,
+    http: Arc<Http>,
+    channel_id: ChannelId,
+    guild_id: GuildId,
+) -> Result<(), Error> {
+    let mock_data_path = secret_store
         .get("MOCK_DATA_PATH")
         .ok_or("Failed to get mock data path")?;
 
     let (report, kicked_ids) = misc::compile_report(&mock_data_path)?;
 
     // TODO: Uncomment this when need to actually kick.
-
-    // let guild_id = ctx.guild_id().ok_or("Failed to get guild ID")?;
     // for user_id in kicked_ids {
-    //     guild_id
-    //         .kick(ctx.serenity_context().http.clone(), user_id)
-    //         .await?;
+    //     user_id = UserId(user_id);
+    //     match kick_member(&http, guild_id, user_id).await {
+    //         Ok(_) => println!("Kicked user: {}", user_id),
+    //         Err(why) => println!("Error kicking user: {:?}", why),
+    //     }
     // }
 
-    ctx.reply(report).await?;
-
+    match channel_id.say(&http, report).await {
+        Ok(_) => println!("Message sent"),
+        Err(why) => println!("Error sending message: {:?}", why),
+    }
+    println!("Reached");
     Ok(())
 }
 
@@ -52,14 +62,35 @@ async fn main(#[shuttle_secrets::Secrets] secret_store: SecretStore) -> ShuttleP
         .get("DISCORD_TOKEN")
         .expect("Discord Token must be set");
 
+    let token_clone = token.clone();
+
+    let secret_store_clone = secret_store.clone();
+    let channel_id = ChannelId(
+        secret_store
+            .get("CHANNEL_ID")
+            .expect("Channel ID must be set")
+            .parse()
+            .expect("Invalid Channel ID"),
+    );
+
+    let guild_id = GuildId(
+        secret_store
+            .get("GUILD_ID")
+            .expect("Guild ID must be set")
+            .parse()
+            .expect("Invalid Guild ID"),
+    );
+
     let framework = poise::Framework::builder()
         .options(framework_options)
-        .token(token)
+        .token(token_clone)
         .intents(serenity::GatewayIntents::non_privileged())
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(Data { secret_store })
+                Ok(Data {
+                    secret_store: secret_store_clone,
+                })
             })
         })
         .build()
@@ -68,14 +99,15 @@ async fn main(#[shuttle_secrets::Secrets] secret_store: SecretStore) -> ShuttleP
 
     thread::spawn(move || {
         let mut sched = JobScheduler::new();
-
-        // TODO: Change this to 5 am everyday instead of every 10 seconds.
+        let http = Arc::new(Http::new(&token));
+        let rt = Runtime::new().unwrap();
         sched.add(Job::new("1/10 * * * * *".parse().unwrap(), move || {
-            // TODO: Fix this.
-            // send_report(); 
-            println!("Sending report!");
+            let secret_store = secret_store.clone();
+            let http = http.clone();
+            rt.block_on(async move {
+                let _ = send_report(secret_store, http, channel_id, guild_id).await;
+            });
         }));
-
         loop {
             sched.tick();
             std::thread::sleep(Duration::from_millis(500));
