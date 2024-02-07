@@ -35,13 +35,13 @@ async fn send_report(
     let (report, kicked_ids) = misc::compile_report(&mock_data_path)?;
 
     // TODO: Uncomment this when need to actually kick.
-    // for user_id in kicked_ids {
-    //     user_id = UserId(user_id);
-    //     match kick_member(&http, guild_id, user_id).await {
-    //         Ok(_) => println!("Kicked user: {}", user_id),
-    //         Err(why) => println!("Error kicking user: {:?}", why),
-    //     }
-    // }
+    for user_id_u64 in kicked_ids {
+        let user_id = UserId(user_id_u64);
+        match kick_member(&http, guild_id, user_id).await {
+            Ok(_) => println!("Kicked user: {}", user_id),
+            Err(why) => println!("Error kicking user: {:?}", why),
+        }
+    }
 
     match channel_id.say(&http, report).await {
         Ok(_) => println!("Message sent"),
