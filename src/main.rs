@@ -17,11 +17,10 @@ struct Data {
     secret_store: SecretStore,
 }
 
-pub async fn kick_member(http: &Http, guild_id: GuildId, user_id: UserId) -> serenity::Result<()> {
+async fn kick_member(http: &Http, guild_id: GuildId, user_id: UserId) -> serenity::Result<()> {
     guild_id.kick(&http, user_id).await
 }
 
-// TODO: Modify the function so that it can be called from the scheduler.
 async fn send_report(
     secret_store: SecretStore,
     http: Arc<Http>,
@@ -101,7 +100,9 @@ async fn main(#[shuttle_secrets::Secrets] secret_store: SecretStore) -> ShuttleP
         let mut sched = JobScheduler::new();
         let http = Arc::new(Http::new(&token));
         let rt = Runtime::new().unwrap();
-        sched.add(Job::new("1/10 * * * * *".parse().unwrap(), move || {
+        
+        // TODO: Change the expression to "0 0 5 * * *" for calling the function everyday at 5 AM.
+        sched.add(Job::new("1 * * * * *".parse().unwrap(), move || {
             let secret_store = secret_store.clone();
             let http = http.clone();
             rt.block_on(async move {

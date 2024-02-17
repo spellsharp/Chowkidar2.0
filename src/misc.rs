@@ -1,7 +1,7 @@
 use chrono::{Datelike, NaiveDate};
 use serde_json::Value;
 use std::fs::File;
-use std::io::Read;
+use std::io::{self, Read};
 use std::marker::{Send, Sync};
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -18,86 +18,78 @@ fn get_date() -> NaiveDate {
 
     return date;
 }
+fn read_json_file(data_path: &str) -> Result<String, Error> {
+    let mut file = File::open(data_path)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    Ok(contents)
+}
+
+fn extract_array_from_json(json_data: &Value, key: &str) -> Result<Vec<Value>, Error> {
+    match json_data[key].as_array() {
+        Some(array) => Ok(array.to_vec()),
+        None => Err(Box::new(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("Invalid JSON format: {} is missing or not an array", key),
+        ))),
+    }
+}
+
+fn process_json_data(contents: &str) -> Result<(Vec<Value>, Vec<Value>), Error> {
+    let json_data: Value = serde_json::from_str(contents)?;
+    let did_not_send = extract_array_from_json(&json_data, "memberDidNotSend")?;
+    let did_send = extract_array_from_json(&json_data, "memberDidSend")?;
+    Ok((did_not_send, did_send))
+}
+
+fn days_to_time_period(days: i64) -> String {
+    if days >= 365 {
+        days_to_years(days)
+    } else if days >= 30 {
+        days_to_months(days)
+    } else if days >= 7 {
+        days_to_weeks(days)
+    } else {
+        format!("{}D", days)
+    }
+}
 
 fn days_to_weeks(days: i64) -> String {
     let week = days / 7;
-    return format!("{}W+", week);
+    format!("{}W+", week)
 }
 
 fn days_to_months(days: i64) -> String {
     let month = days / 30;
-    return format!("{}M+", month);
+    format!("{}M+", month)
 }
 
 fn days_to_years(days: i64) -> String {
     let year = days / 365;
-    return format!("{}Y+", year);
+    format!("{}Y+", year)
 }
 
-pub fn process_json(
-    data_path: &str,
-) -> Result<(Vec<Value>, Vec<Value>), Error> {
-    let mut file = File::open(data_path)?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-
-    let json_data: Value = match serde_json::from_str(&contents) {
-        Ok(data) => data,
-        Err(err) => return Err(Box::new(err)),
-    };
-
-    let did_not_send = match json_data["memberDidNotSend"].as_array() {
-        Some(array) => array.to_vec(),
-        None => return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "Invalid JSON format: memberDidNotSend is missing or not an array",
-        ))),
-    };
-
-    let did_send = match json_data["memberDidSend"].as_array() {
-        Some(array) => array.to_vec(),
-        None => return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "Invalid JSON format: memberDidSend is missing or not an array",
-        ))),
-    };
-
-    Ok((did_not_send, did_send))
-}
-
-pub fn compile_report(mock_data_path: &str) -> Result<(String, Vec<u64>), Error> {
-    
-    let (did_not_send, did_send) = process_json(mock_data_path)?;
-
-
+fn generate_report_content(
+    did_not_send: &[Value],
+    did_send: &[Value],
+    date: NaiveDate,
+) -> (String, Vec<u64>) {
     let mut report = String::from("**DAILY REPORT**\n\n");
     let mut kicked_ids: Vec<u64> = Vec::new();
-
-    let mut kicked = String::new();
-    let date: NaiveDate = get_date();
-
     let mut first_years: Vec<String> = Vec::new();
     let mut second_years: Vec<String> = Vec::new();
     let mut third_years: Vec<String> = Vec::new();
     let mut fourth_years: Vec<String> = Vec::new();
-
     let mut kick_index = 0;
-    report += &format!("**Did Not Send :scream:**\n\n");
+
+    // Processing members who did not send
+    report += "**Did Not Send :scream:**\n\n";
     for member in did_not_send {
         if let Some(last_status_update) = member["lastStatusUpdate"].as_str() {
             if let Ok(last_update_date) = NaiveDate::parse_from_str(last_status_update, "%Y-%m-%d")
             {
                 let days_difference = date.signed_duration_since(last_update_date).num_days();
-
-                let mut time_period_not_sent = format!("{}D", days_difference);
-
-                if days_difference > 365 {
-                    time_period_not_sent = days_to_years(days_difference);
-                } else if days_difference > 30 {
-                    time_period_not_sent = days_to_months(days_difference);
-                } else if days_difference > 7 {
-                    time_period_not_sent = days_to_weeks(days_difference);
-                }
+                let time_period_not_sent = days_to_time_period(days_difference);
 
                 let admission_year = member["admissionYear"]
                     .as_str()
@@ -105,79 +97,59 @@ pub fn compile_report(mock_data_path: &str) -> Result<(String, Vec<u64>), Error>
                     .parse::<i32>()
                     .unwrap();
 
-                if date.year() - admission_year == 1 {
-                    first_years.push(format!(
+                match date.year() - admission_year {
+                    1 => first_years.push(format!(
                         "{} - {} \n",
                         member["fullName"].as_str().unwrap(),
                         time_period_not_sent
-                    ));
-                }
-
-                if date.year() - admission_year == 2 {
-                    second_years.push(format!(
+                    )),
+                    2 => second_years.push(format!(
                         "{} - {} \n",
                         member["fullName"].as_str().unwrap(),
                         time_period_not_sent
-                    ));
-                }
-
-                if date.year() - admission_year == 3 {
-                    third_years.push(format!(
+                    )),
+                    3 => third_years.push(format!(
                         "{} - {} \n",
                         member["fullName"].as_str().unwrap(),
                         time_period_not_sent
-                    ));
-                }
-
-                if date.year() - admission_year == 4 {
-                    fourth_years.push(format!(
+                    )),
+                    4 => fourth_years.push(format!(
                         "{} - {} \n",
                         member["fullName"].as_str().unwrap(),
                         time_period_not_sent
-                    ));   
+                    )),
+                    _ => {}
                 }
 
                 if days_difference >= 3 {
                     kick_index += 1;
                     let user_id_str = &member["userID"];
                     let user_id = user_id_str.as_str().unwrap().parse::<u64>().unwrap();
-                    kicked_ids.push(user_id); // Add the kicked user's ID to the vector
-                    kicked += &format!("{}. {}\n", kick_index, member["fullName"].as_str().unwrap());
+                    kicked_ids.push(user_id);
                 }
             }
         }
     }
-    if !first_years.is_empty() {
-        report += &format!("First Years\n");
-        for (index, member) in first_years.iter().enumerate() {
-            report += &format!("{}. {}\n", index + 1, member);
+
+    // Generating report content for each year
+    for (title, members) in [
+        ("First Years", &first_years),
+        ("Second Years", &second_years),
+        ("Third Years", &third_years),
+        ("Fourth Years", &fourth_years),
+    ]
+    .iter()
+    {
+        if !members.is_empty() {
+            report += &format!("{}\n", title);
+            for (index, member) in members.iter().enumerate() {
+                report += &format!("{}. {}\n", index + 1, member);
+            }
         }
     }
 
-    if !second_years.is_empty() {
-        report += &format!("Second Years\n");
-        for (index, member) in second_years.iter().enumerate() {
-            report += &format!("{}. {}\n", index + 1, member);
-        }
-    }
-
-    if !third_years.is_empty() {
-        report += &format!("Third Years\n");
-        for (index, member) in third_years.iter().enumerate() {
-            report += &format!("{}. {}\n", index + 1, member);
-        }
-    }
-
-    if !fourth_years.is_empty() {
-        report += &format!("Fourth Years\n");
-        for (index, member) in fourth_years.iter().enumerate() {
-            report += &format!("{}. {}\n", index + 1, member);
-        }
-    }
-
-    report += &format!("**Streaks! :fire:**\n");
-
-    // Get members with top 5 streak values
+    // Generating streaks
+    report += "**Streaks! :fire:**\n";
     let mut streaks: Vec<(&str, &str)> = did_send
         .iter()
         .map(|member| {
@@ -199,14 +171,28 @@ pub fn compile_report(mock_data_path: &str) -> Result<(String, Vec<u64>), Error>
         i += 1;
     }
 
-    // Add list of people who got kicked to the report.
-    if !kicked.is_empty() {
-        kicked = String::from("**Kicked :x: **\n") + &kicked;
-    } else {
-        kicked = String::from("No one was kicked today!");
-    }
-    println!("{}", kicked);
+    (report, kicked_ids)
+}
 
-    report += &format!("\n{}", kicked);
-    Ok((report, kicked_ids))
+pub fn compile_report(mock_data_path: &str) -> Result<(String, Vec<u64>), Error> {
+    let contents = read_json_file(mock_data_path)?;
+    let (did_not_send, did_send) = process_json_data(&contents)?;
+    let date = get_date();
+    let (report_content, kicked_ids) = generate_report_content(&did_not_send, &did_send, date);
+    let kicked = if !kicked_ids.is_empty() {
+        format!(
+            "**Kicked :x: **\n{}",
+            kicked_ids
+                .iter()
+                .enumerate()
+                .fold(String::new(), |mut acc, (index, id)| {
+                    acc.push_str(&format!("{}. {}\n", index + 1, id));
+                    acc
+                })
+        )
+    } else {
+        String::from("No one was kicked today!")
+    };
+    println!("{}", kicked);
+    Ok((format!("{}\n{}", report_content, kicked), kicked_ids))
 }
