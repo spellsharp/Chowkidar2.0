@@ -76,10 +76,7 @@ fn generate_report_content(
 ) -> (String, Vec<u64>) {
     let mut report = String::from("**DAILY REPORT**\n\n");
     let mut kicked_ids: Vec<u64> = Vec::new();
-    let mut first_years: Vec<String> = Vec::new();
-    let mut second_years: Vec<String> = Vec::new();
-    let mut third_years: Vec<String> = Vec::new();
-    let mut fourth_years: Vec<String> = Vec::new();
+    let mut years: Vec<Vec<String>> = vec![Vec::new(); 4];
     let mut kick_index = 0;
 
     // Processing members who did not send
@@ -97,28 +94,12 @@ fn generate_report_content(
                     .parse::<i32>()
                     .unwrap();
 
-                match date.year() - admission_year {
-                    1 => first_years.push(format!(
+                if let Some(year) = years.get_mut((date.year() - admission_year) as usize) {
+                    year.push(format!(
                         "{} - {} \n",
                         member["fullName"].as_str().unwrap(),
                         time_period_not_sent
-                    )),
-                    2 => second_years.push(format!(
-                        "{} - {} \n",
-                        member["fullName"].as_str().unwrap(),
-                        time_period_not_sent
-                    )),
-                    3 => third_years.push(format!(
-                        "{} - {} \n",
-                        member["fullName"].as_str().unwrap(),
-                        time_period_not_sent
-                    )),
-                    4 => fourth_years.push(format!(
-                        "{} - {} \n",
-                        member["fullName"].as_str().unwrap(),
-                        time_period_not_sent
-                    )),
-                    _ => {}
+                    ));
                 }
 
                 if days_difference >= 3 {
@@ -132,15 +113,15 @@ fn generate_report_content(
     }
 
     // Generating report content for each year
-    for (title, members) in [
-        ("First Years", &first_years),
-        ("Second Years", &second_years),
-        ("Third Years", &third_years),
-        ("Fourth Years", &fourth_years),
-    ]
-    .iter()
-    {
+    for (index, members) in years.iter().enumerate() {
         if !members.is_empty() {
+            let title = match index {
+                0 => "First Years",
+                1 => "Second Years",
+                2 => "Third Years",
+                3 => "Fourth Years",
+                _ => "",
+            };
             report += &format!("{}\n", title);
             for (index, member) in members.iter().enumerate() {
                 report += &format!("{}. {}\n", index + 1, member);
