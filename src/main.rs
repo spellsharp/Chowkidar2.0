@@ -17,8 +17,23 @@ struct Data {
     secret_store: SecretStore,
 }
 
-async fn kick_member(http: &Http, guild_id: GuildId, user_id: UserId) -> serenity::Result<()> {
-    guild_id.kick(&http, user_id).await
+async fn probate_member(http: &Http, guild_id: GuildId, user_id: UserId) -> Result<(), Error> {
+    let mut member = guild_id.member(http, user_id).await?;
+
+    // Remove all existing roles
+    member.roles.clear();
+
+    // Add the "Probation" role
+    let guild = guild_id.to_partial_guild(&http).await?;
+    let probation_role = guild
+        .roles
+        .values()
+        .find(|role| role.name == "Probation")
+        .ok_or("Role 'Probation' not found")?;
+    member.add_role(http, probation_role).await?;
+
+    println!("Probating user: {}", user_id);
+    Ok(())
 }
 
 async fn send_report(
@@ -36,8 +51,8 @@ async fn send_report(
     // TODO: Uncomment this when need to actually kick.
     for user_id_u64 in kicked_ids {
         let user_id = UserId(user_id_u64);
-        match kick_member(&http, guild_id, user_id).await {
-            Ok(_) => println!("Kicked user: {}", user_id),
+        match probate_member(&http, guild_id, user_id).await {
+            Ok(_) => println!("Probated user: {}", user_id),
             Err(why) => println!("Error kicking user: {:?}", why),
         }
     }
@@ -100,9 +115,9 @@ async fn main(#[shuttle_secrets::Secrets] secret_store: SecretStore) -> ShuttleP
         let mut sched = JobScheduler::new();
         let http = Arc::new(Http::new(&token));
         let rt = Runtime::new().unwrap();
-        
+
         // TODO: Change the expression to "0 0 5 * * *" for calling the function everyday at 5 AM.
-        sched.add(Job::new("1 * * * * *".parse().unwrap(), move || {
+        sched.add(Job::new("* * * * * *".parse().unwrap(), move || {
             let secret_store = secret_store.clone();
             let http = http.clone();
             rt.block_on(async move {

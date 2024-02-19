@@ -116,10 +116,10 @@ fn generate_report_content(
     for (index, members) in years.iter().enumerate() {
         if !members.is_empty() {
             let title = match index {
-                0 => "First Years",
-                1 => "Second Years",
-                2 => "Third Years",
-                3 => "Fourth Years",
+                1 => "**First Year Batch**",
+                2 => "**Second Year Batch**",
+                3 => "**Third Year Batch**",
+                4 => "**Fourth Year Batch**",
                 _ => "",
             };
             report += &format!("{}\n", title);
@@ -167,7 +167,13 @@ pub fn compile_report(mock_data_path: &str) -> Result<(String, Vec<u64>), Error>
                 .iter()
                 .enumerate()
                 .fold(String::new(), |mut acc, (index, id)| {
-                    acc.push_str(&format!("{}. {}\n", index + 1, id));
+                    let member = did_not_send
+                        .iter()
+                        .find(|m| m["userID"].as_str() == Some(id.to_string().as_str()));
+                    if let Some(member) = member {
+                        let full_name = member["fullName"].as_str().unwrap();
+                        acc.push_str(&format!("{}. {}\n", index + 1, full_name));
+                    }
                     acc
                 })
         )
