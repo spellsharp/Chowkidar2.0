@@ -21,7 +21,7 @@ async fn probate_member(http: &Http, guild_id: GuildId, user_id: UserId) -> Resu
     let mut member = guild_id.member(http, user_id).await?;
 
     // Remove all existing roles
-    member.roles.clear();
+    member.remove_roles(http, &[]).await?;
 
     // Add the "Probation" role
     let guild = guild_id.to_partial_guild(&http).await?;
